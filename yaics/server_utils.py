@@ -1,9 +1,13 @@
 from socketserver import ThreadingMixIn
 from socketserver import TCPServer
 from socketserver import BaseRequestHandler
-from subprocess import call
+from subprocess import check_call
+from subprocess import CalledProcessError
 import struct
+import socket
+import os
 from yaics.commons import Packet
+from yaics.commons import ParseError
 
 class SimpleRPCServer(ThreadingMixIn, TCPServer):
 	pass
@@ -11,19 +15,22 @@ class SimpleRPCServer(ThreadingMixIn, TCPServer):
 class CommandHandler(BaseRequestHandler):
 	
 	def execute_payload(self, packet):
-		cmd = str(packet.payload)
+		cmd = packet.payload.decode("utf-8")
 		cmds = cmd.split(" ")
 
 		try:
+			cwd = os.getcwd()
+			print("executing \"{}\" inside \"{}\"".format(cmd, cwd))
 			check_call(cmds)
-		except CallProcessError as e:
+			print("DONE")
+		except CalledProcessError as e:
+			print("NOT DONE")
 			return e.returncode
 		return 0
 
 	def fetch_packet(self):
 		total_bytes = b""
 		packet = None
-		socket.settimeout()
 		while True:
 			bytes_received = self.request.recv(1024)
 			if bytes_received is None:
@@ -33,10 +40,13 @@ class CommandHandler(BaseRequestHandler):
 				success = False
 				break
 
+			print("arrived {}".format(bytes_received))
 			total_bytes = b"".join([total_bytes, bytes_received])
+			print("the whole data is {}".format(total_bytes))
 			try:
-				packet = Packet.parse(total_bytes)
-			except Exception:
+				packet = Packet.parse(total_bytes, "utf-8")
+			except ParseError as e:
+				print(str(e))
 				continue
 			else:
 				success = True
@@ -52,7 +62,7 @@ class CommandHandler(BaseRequestHandler):
 				reply = Packet.create_answer(True)
 			else:
 				reply = Packet.create_answer(False)
-		except TypeError:
-			reply = Packet.create_answer(False)
+		except Exception as e:
+			reply = Packet.create_answer(False, str(e))
 		finally:
-			self.request.sendall(bytes(reply))
+			self.request.sendall(reply.encode())

@@ -8,7 +8,7 @@ def main():
 	parser.add_argument('-i', "--ip",
 		type=str,
 		required=False,
-		default="192.168.1.251"
+		default="192.168.1.251",
 		help="The IP of the server to contact"
 	)
 	parser.add_argument('-p', "--port",
@@ -21,8 +21,9 @@ def main():
 		type=str,
 		required=True,
 		help="The command to send to the server"
+	)
 
-	args = parser.parser_args()
+	args = parser.parse_args()
 
 	HOST = args.ip
 	PORT = args.port
@@ -33,12 +34,23 @@ def main():
 		#connect
 		sock.connect((HOST, PORT))
 		#receive
-		sock.sendall(bytes(data, "utf-8"))
+		pkt = Packet.create_question(data)
+		sock.sendall(pkt.encode("utf-8"))
 		#receive
 		print("Sent message. We're now waiting for reply")
-		received = str(sock.recv(1024), "utf-8")
+		received = sock.recv(1024)
 
-		print("received" + received)
+		reply = Packet.parse(received, "utf-8")
+		if reply.type == Packet.PACKET_ANSWER_OK:
+			print("everything went fine")
+		elif reply.type == Packet.PACKET_ANSWER_KO:
+			print("Something went wrong")
+			if len(reply.payload) > 0:
+				print("-" * 20)
+				print(reply.payload.decode("utf-8"))
+				print("-" * 20)
+		else:
+			raise ValueError("reply type mismatch!")
 	finally:
 		sock.close()
 
