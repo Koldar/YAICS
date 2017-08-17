@@ -1,4 +1,4 @@
-from commons import Packet
+from yaics.commons import Packet
 import socket
 import sys
 import argparse
